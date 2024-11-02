@@ -1,68 +1,95 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\Task;
 use Illuminate\Http\Request;
+use App\Models\Category;
+use App\Models\Tag;
 
 class TaskController extends Controller
 {
     // Метод для отображения списка задач
     public function index()
     {
-        // Статические данные для задач
-        $tasks = [
-            ['id' => 1, 'title' => 'Задача 1'],
-            ['id' => 2, 'title' => 'Задача 2'],
-            ['id' => 3, 'title' => 'Задача 3'],
-        ];
+        // Получаем все задачи из базы данных
+    $tasks = Task::all();
 
-        return view('tasks.index', ['tasks' => $tasks]); // Возвращаем представление с задачами
+    // Возвращаем представление и передаем список задач
+    return view('tasks.index', compact('tasks'));
     }
 
     // Метод для отображения формы создания задачи
     public function create()
     {
-        // Временный вывод, пока не реализована форма
-        return 'Форма создания задачи'; 
+        $categories = Category::all(); // Получение всех категорий для выпадающего списка
+        $tags = Tag::all(); // Получение всех тегов для выпадающего списка
+        return view('tasks.create', compact('categories', 'tags'));
     }
 
     // Метод для сохранения новой задачи
     public function store(Request $request)
     {
-        // Временный вывод, пока не реализовано сохранение
-        return 'Задача сохранена'; 
+        $validatedData = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'category_id' => 'required|exists:categories,id',
+            'tags' => 'array',
+            'tags.*' => 'exists:tags,id', // Проверка каждого тега
+        ]);
+
+        $task = Task::create([
+            'title' => $validatedData['title'],
+            'description' => $validatedData['description'],
+            'category_id' => $validatedData['category_id'],
+        ]);
+
+        // Привязываем теги к задаче
+        if (isset($validatedData['tags'])) {
+            $task->tags()->attach($validatedData['tags']);
+        }
+
+        return redirect()->route('tasks.index')->with('success', 'Задача успешно создана!');
     }
 
     // Метод для отображения отдельной задачи
     public function show($id)
     {
-        $task = [
-            'id' => $id,
-            'title' => 'Task Title ' . $id,
-            // Здесь могут быть дополнительные данные задачи
-        ];
+       // Получаем задачу по идентификатору с её категорией и тегами
+    $task = Task::with(['category', 'tags'])->findOrFail($id);
 
-        return view('tasks.show', ['task' => $task]); // Возвращаем представление с конкретной задачей
+    // Возвращаем представление и передаем информацию о задаче
+    return view('tasks.show', compact('task'));
     }
 
     // Метод для отображения формы редактирования задачи
     public function edit($id)
     {
-        // Временный вывод, пока не реализована форма редактирования
-        return 'Форма редактирования задачи с ID: ' . $id; 
+        $task = Task::with(['category', 'tags'])->findOrFail($id);
+        $categories = Category::all(); // Получаем все категории для выбора
+        $tags = Tag::all(); // Получаем все теги для выбора
+        return view('tasks.edit', compact('task', 'categories', 'tags'));
     }
 
     // Метод для обновления задачи
     public function update(Request $request, $id)
     {
-        // Временный вывод, пока не реализовано обновление
-        return 'Задача с ID ' . $id . ' обновлена'; 
+        $task = Task::findOrFail($id);
+        $task->title = $request->input('title');
+        $task->description = $request->input('description');
+        $task->category_id = $request->input('category_id');
+        $task->tags()->sync($request->input('tags', [])); // Обновляем теги
+    
+        $task->save();
+    
+        return redirect()->route('tasks.index')->with('success', 'Задача успешно обновлена!'); 
     }
 
     // Метод для удаления задачи
     public function destroy($id)
     {
-        // Временный вывод, пока не реализовано удаление
-        return 'Задача с ID ' . $id . ' удалена'; 
+        $task = Task::findOrFail($id);
+        $task->delete();
+    
+        return redirect()->route('tasks.index')->with('success', 'Задача успешно удалена!');
     }
 }
