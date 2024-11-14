@@ -35,10 +35,20 @@
                         <td>
                             <a href="{{ route('tasks.show', $task->id) }}" class="btn btn-info">Просмотреть</a>
                         </td>
+                        <td>
+                        <a href="{{ route('tasks.edit', $task->id) }}">Редактировать</a>
+                    </td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
     </div>
+    {{-- Проверка наличия флеш-сообщений --}}
+@if(session('success'))
+    <div class="alert alert-success">
+        {{ session('success') }}
+    </div>
+@endif
+
 </body>
 </html>

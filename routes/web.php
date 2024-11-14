@@ -13,6 +13,8 @@ Route::get('/', [HomeController::class, 'index']);
 Route::get('/about', [HomeController::class, 'about'])->name('about');
 
 // Ресурсный контроллер для задач
-Route::resource('tasks', TaskController::class)->parameters([
-    'tasks' => 'id' // Замените 'id' на имя параметра, если необходимо
-]);
+
+Route::get('/tasks/{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
+Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+
+Route::resource('tasks', TaskController::class);

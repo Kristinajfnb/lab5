@@ -1,217 +1,191 @@
-# Лабораторная работа №3. Основы работы с базами данных в Laravel
+# Лабораторная работа №3. Основы создания и управления форм в Laravel
 
 ## Цель работы
 
-Познакомиться с основными принципами работы с базами данных в Laravel. Научиться создавать миграции, модели и сиды на основе веб-приложения `To-Do App`.
+Познакомиться с основами создания и управления формами в Laravel. Освоить механизмы валидации данных на сервере, использовать предустановленные и кастомные правила валидации, а также научиться обрабатывать ошибки и обеспечивать безопасность данных.
 
 ### Задания
 
-1. Использую Sqlite.
-2. Создаем новую базу данных для приложения **todo_app**.
-3. Настраиваем переменные окружения в файле `.env` для подключения к базе данных:
+1. Создаю форму для добавления новой задачи. Форма должна содержать следующие поля: Название, Описание, Дата выполнения, Категория.
 
-![Ку](images/1.jpg)
-
-4. Создаем модель `Category` — категория задачи.
-   - `php artisan make:model Category -m`
-5. Определяем структуры таблицы **category** в миграции:
-
+2. Создаем маршрут POST /tasks для сохранения данных из формы в базе данных. Для удобства  использую ресурсный контроллер.
 ```php
-      public function up()
-    {
-        Schema::create('categories', function (Blueprint $table) {
-            $table->id(); // первичный ключ
-            $table->string('name'); // название категории
-            $table->text('description')->nullable(); // описание категории
-            $table->timestamps(); // created_at и updated_at
-        });
-    }
+use App\Http\Controllers\TaskController;
+
+Route::resource('tasks', TaskController::class);
 ```
-
-6. Создаем модель `Task` — задача.
-- `php artisan make:model Task –m`
-7. Определяем структуры таблицы **task** в миграции:
-
+3. Обновляем контроллер TaskController.
 ```php
-public function up()
-    {
-        Schema::create('tasks', function (Blueprint $table) {
-            $table->id(); // первичный ключ
-            $table->string('title'); // название задачи
-            $table->text('description')->nullable(); // описание задачи
-            $table->timestamps(); // created_at и updated_at
-        });
-    }
-```
-8. Запускаем миграцию для создания таблицы в базе данных:
-
-![Ку](images/2.jpg)
-
-9. Создаем модель `Tag` — тег задачи.
-
-- `php artisan make:model Tag –m`
-
-10. Определяем структуры таблицы **tag** в миграции:
-
-```php
-  public function up()
-    {
-        Schema::create('tags', function (Blueprint $table) {
-            $table->id(); // первичный ключ
-            $table->string('name'); // название тега
-            $table->timestamps(); // created_at и updated_at
-        });
-    }
-```
-11. Добавьте поле `$fillable` в модели `Task`, `Category` и `Tag` для массового заполнения данных.
-
-```php
-protected $fillable = ['name', 'description']; // поля для массового заполнения
-```
-
-12. Создаем миграцию для добавления поля `category_id` в таблицу **task**.
-   - `php artisan make:migration add_category_id_to_tasks_table --table=tasks`
-   - Определяем структуру поля `category_id` и добавляем внешний ключ для связи с таблицей **category**.
-
-   ```php
-   public function up()
-    {
-        Schema::table('tasks', function (Blueprint $table) {
-            $table->unsignedBigInteger('category_id')->after('id'); // добавление поля category_id
-            // Установка внешнего ключа
-            $table->foreign('category_id')
-                  ->references('id')
-                  ->on('categories')
-                  ->onDelete('cascade'); // удаление задачи при удалении категории
-        });
-    }
-    ```
-
-13. Создаем промежуточную таблицу для связи многие ко многим между задачами и тегами:
-   - `php artisan make:migration create_task_tag_table`
-14. Определение соответствующей структуры таблицы в миграции.
-
-```php
-   public function up()
-    {
-        Schema::create('task_tag', function (Blueprint $table) {
-            $table->id(); // автоинкрементный первичный ключ
-            $table->unsignedBigInteger('task_id'); // внешний ключ на таблицу tasks
-            $table->unsignedBigInteger('tag_id'); // внешний ключ на таблицу tags
-
-            // Установка внешних ключей
-            $table->foreign('task_id')
-                  ->references('id')
-                  ->on('tasks')
-                  ->onDelete('cascade'); // удаление связи при удалении задачи
-
-            $table->foreign('tag_id')
-                  ->references('id')
-                  ->on('tags')
-                  ->onDelete('cascade'); // удаление связи при удалении тега
-        });
-    }
-```
-15. Запускаем миграцию для создания таблицы в базе данных.
-
-- `php artisan migrate`
-
-16. Добавляем отношения в модель `Category`
-
-     ```php
-     public function tasks()
-     {
-         return $this->hasMany(Task::class);
-     }
-     ```
-
-17. Добавляем отношения в модель `Task`.
-
- ```php
-class Task extends Model
+public function create()
 {
-    use HasFactory;
-
-    protected $fillable = ['title', 'description', 'category_id']; // Добавьте поле для массового заполнения
-
-    // Метод для связи с категорией
-    public function category()
-    {
-        return $this->belongsTo(Category::class); // Одна задача принадлежит одной категории
-    }
-
-    // Метод для связи с тегами
-    public function tags()
-    {
-        return $this->belongsToMany(Tag::class, 'task_tag'); // Задача может иметь много тегов
-    }
+    $categories = \App\Models\Category::all(); // Получаем все категории для выпадающего списка
+    return view('tasks.create', compact('categories'));
 }
- ```
-   
-18. Добавляем отношения в модель `Tag`.
-
- ```php
-class Tag extends Model
+public function store(Request $request)
 {
-    use HasFactory;
+    $request->validate([
+        'title' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'due_date' => 'nullable|date',
+        'category_id' => 'required|exists:categories,id'
+    ]);
 
-    protected $fillable = ['name']; // Добавьте поле для массового заполнения
+    Task::create([
+        'title' => $request->input('title'),
+        'description' => $request->input('description'),
+        'due_date' => $request->input('due_date'),
+        'category_id' => $request->input('category_id')
+    ]);
 
-    // Метод для связи с задачами
-    public function tasks()
-    {
-        return $this->belongsToMany(Task::class, 'task_tag'); // Тег может быть прикреплен к многим задачам
-    }
+    return redirect()->route('tasks.index')->with('success', 'Задача успешно добавлена.');
 }
- ```
+```
+![Ку](images/1.png)
 
-19. Добавляем соотвтествующие поля в `$fillable` моделей.
-20. Создаем фабрику для модели `Category`:
-   - `php artisan make:factory CategoryFactory --model=Category`
-   - Определяем структуру данных для генерации категорий.
+4. Реализуем валидацию данных непосредственно в методе store контроллера TaskController.
+```php
+    public function store(Request $request)
+    {
+        // Валидация данных
+        $validated = $request->validate([
+            'title' => 'required|string|min:3',
+            'description' => 'nullable|string|max:500',
+            'due_date' => 'required|date|after_or_equal:today', // Дата не может быть в прошлом
+            'category_id' => 'required|exists:categories,id', // Должна быть валидная категория
+        ]);
 
-    ```php
-   public function definition()
+        // Если валидация прошла успешно, создаем задачу
+        Task::create($validated);
+
+        // Перенаправляем на страницу задач с сообщением об успешном создании
+        return redirect()->route('tasks.index')->with('success', 'Задача успешно добавлена!');
+    }
+```
+5. Обрабатываем ошибки валидации и возвращаем их обратно к форме, отображая сообщения об ошибках рядом с полями.
+
+```php
+      <div>{{ $message }}</div>
+```
+![Ку](images/2.png)
+
+6. Создаем собственный класс запроса для валидации формы задачи.
+- `php artisan make:request CreateTaskRequest`
+7. В классе CreateTaskRequest определяем правила валидации, аналогичные тем, что были в контроллере.
+
+```php
+ public function rules()
     {
         return [
-            'name' => $this->faker->word, // Генерация случайного названия категории
-            'description' => $this->faker->sentence, // Генерация случайного описания
+            'title' => 'required|string|min:3',
+            'description' => 'nullable|string|max:500',
+            'due_date' => 'required|date|after_or_equal:today',
+            'category_id' => 'required|exists:categories,id',
         ];
     }
-    ```
+```
+8. Обновляем метод store контроллера TaskController для использования CreateTaskRequest вместо стандартного Request.
 
-21. Создаем фабрику для модели `Task`.
-- `php artisan make:factory TaskFactory --model=Task`
-22. Создаем фабрику для модели `Tag`.
-- `php artisan make:factory TagFactory --model=Tag`
-23. Создаем сиды (`seeders`) для заполнения таблиц начальными данными для моделей: `Category`, `Task`, `Tag`.
-- `php artisan make:seeder CategorySeeder`
-- `php artisan make:seeder TaskSeeder`
-- `php artisan make:seeder TagSeeder`
+```php
+ public function store(CreateTaskRequest $request)
+    {
+        // Данные уже прошли валидацию, можем сохранить задачу
+        Task::create([
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'due_date' => $request->input('due_date'),
+            'category_id' => $request->input('category_id'),
+        ]);
 
-24. Обновляем файл `DatabaseSeeder` для запуска сидов и запускаем их:
-   ```bash
-   php artisan db:seed
-   ```
-![Ку](images/3.jpg)
+        // Перенаправляем с сообщением об успешном создании
+        return redirect()->route('tasks.index')->with('success', 'Task created successfully');
+    }
+```
+9. Добавляем логику валидации для связанных данных.
 
-25. Открываем контроллер `TaskController` (`app/Http/Controllers/TaskController.php`).
-26. Обновляем методы `index`, `Task`,  `show`, `index`, `show`, `destroy`, `edit`, `update`, `create`, `store`.
-27. Обновляем соответствующие представления для отображения списка задач и отдельной задачи.
+```php
+  public function rules()
+    {
+        return [
+            'title' => 'required|string|min:3',
+            'description' => 'nullable|string|max:500',
+            'due_date' => 'required|date|after_or_equal:today',
+            'category_id' => 'required|exists:categories,id', // Проверка, что category_id существует в таблице categories
+        ];
+    }
+```
+10. Обновляем HTML-форму для отображения подтверждающего сообщения об успешном сохранении задачи (флеш-сообщение).
 
-![Ку](images/4.jpg)
+```php
+  // Добавляем флеш-сообщение об успешном сохранении
+    return redirect()->route('tasks.index')->with('success', 'Задача успешно создана.');
+```
+```php
+{{-- Проверка наличия флеш-сообщений --}}
+@if(session('success'))
+    <div class="alert alert-success">
+        {{ session('success') }}
+    </div>
+@endif
+```
+![Ку](images/3.png)
 
-![Ку](images/6.jpg)
+11. Добавляем директиву @csrf в форму для защиты от атаки CSRF.
+```php
+<form action="{{ route('tasks.store') }}" method="POST">
+    @csrf
+    <div>
+        <label for="title">Название</label>
+        <input type="text" name="title" id="title" required>
+    </div>
 
-![Ку](images/6.jpg)
+    <div>
+        <label for="description">Описание</label>
+        <textarea name="description" id="description"></textarea>
+    </div>
+```
+12. Добавляем возможность редактирования задачи. Создаем форму для редактирования задачи.
+
+![Ку](images/4.png)
+
+13. Создаем новый Request-класс UpdateTaskRequest с аналогичными правилами валидации.
+
+- `php artisan make:request UpdateTaskRequest`
+
+14. Создаем маршрут GET /tasks/{task}/edit и метод edit в контроллере TaskController.
+
+```php
+use App\Http\Controllers\TaskController;
+
+Route::get('/tasks/{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
+```
+
+15. Создаем маршрут PUT /tasks/{task} для обновления задачи.
+
+```php
+Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+```
+
+16. Обновляем метод update в контроллере TaskController для обработки данных из формы.
+
+```php
+public function update(UpdateTaskRequest $request, Task $task)
+{
+    // Данные уже прошли валидацию через UpdateTaskRequest
+    $task->update([
+        'title' => $request->input('title'),
+        'description' => $request->input('description'),
+        'due_date' => $request->input('due_date'),
+        'category_id' => $request->input('category_id'),
+    ]);
+
+    // Добавляем флеш-сообщение об успешном обновлении
+    return redirect()->route('tasks.index')->with('success', 'Задача успешно обновлена.');
+}
+```
 
 ## Контрольные вопросы
-
-1. Что такое миграции  и для чего они используются? Миграции — это способ версионирования и управления схемой базы данных в приложениях на Laravel. Они позволяют разработчикам создавать, изменять и удалять таблицы и поля базы данных, сохраняя при этом историю изменений. Основные преимущества миграций: Безопасность: Миграции позволяют откатить изменения при необходимости. Удобство: Разработчики могут легко делиться структурой базы данных через систему контроля версий. Автоматизация: Миграции можно выполнять через командную строку, что упрощает процесс развертывания.
-2. Что такое фабрики и сиды, и как они упрощают процесс разработки и тестирования? Фабрики и сиды в Laravel используются для упрощения генерации и заполнения тестовыми данными: Фабрики (Factories) позволяют создавать объекты модели с фейковыми данными для тестирования. Они помогают быстро заполнять базу данных данными без необходимости вручную вводить каждую запись. Сиды (Seeders) — это классы, которые содержат код для заполнения таблиц базы данных начальными данными. С их помощью можно быстро и удобно заполнить базу данных фиксированными данными, что полезно для разработки и тестирования. Вместе они позволяют разработчикам быстро создавать тестовые данные и проверять функциональность приложения.
-3. Что такое ORM? В чем различия между паттернами `DataMapper` и `ActiveRecord`? ORM (Object-Relational Mapping) — это метод программирования, который позволяет взаимодействовать с базой данных, используя объекты вместо прямых SQL-запросов. Это упрощает работу с данными, делая код более читаемым и удобным. ActiveRecord: Каждая модель представляет собой таблицу в базе данных, а объекты модели напрямую связаны с записями. Методы для выполнения запросов и управления состоянием объекта находятся в одной модели. DataMapper: В этом паттерне модель и база данных отделены. Модель не знает о том, как сохраняются и загружаются данные, и методы доступа к данным (например, репозитории) используются для взаимодействия. 
-4. В чем преимущества использования ORM по сравнению с прямыми SQL-запросами? Удобство работы: ORM позволяет работать с базой данных, используя объекты, что делает код более понятным и легким для чтения.
-Безопасность: ORM автоматически обрабатывает экранирование данных, что помогает предотвратить SQL-инъекции.
-Мобильность: Код, использующий ORM, более независим от конкретной СУБД, что упрощает переход на другую СУБД.
-Упрощение тестирования: ORM позволяет легче подменять реализацию доступа к данным во время тестирования, что упрощает тестирование бизнес-логики.
-5. Что такое транзакции и зачем они нужны при работе с базами данных? Транзакции — это группа операций, которые выполняются как единое целое. Транзакции обеспечивают целостность данных, гарантируя, что либо все операции в транзакции будут выполнены успешно, либо ни одна из них не будет применена. Использование транзакций помогает предотвратить повреждение данных и обеспечивает надежность работы с базой данных.
+1. Что такое валидация данных и зачем она нужна? Валидация данных — это процесс проверки и подтверждения того, что данные, введенные пользователем в форму, соответствуют определенным правилам. Зачем она нужна: предотвращение ошибок, безопасность, удобство пользователя.
+2. Как обеспечить защиту формы от CSRF-атак в Laravel? CSRF (Cross-Site Request Forgery) — это тип атаки, при которой злоумышленник заставляет пользователя выполнить нежелательные действия на веб-сайте, на котором он аутентифицирован. Laravel защищает от CSRF-атак с помощью специального токена, который необходимо включить в каждую форму, отправляющую данные методом POST, PUT, DELETE.
+3. Как создать и использовать собственные классы запросов (Request) в Laravel? Классы запросов в Laravel — это специальные классы, которые используются для инкапсуляции логики валидации и авторизации. Это помогает разделить логику контроллера и улучшить читаемость и поддержку кода.
+- `php artisan make:request UpdateTaskRequest`
+4. Как защитить данные от XSS-атак при выводе в представлении? Защита от XSS-атак обеспечивается через автоматическое экранирование данных, выводимых в Blade-шаблонах с помощью {{ }}.

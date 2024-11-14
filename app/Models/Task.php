@@ -9,7 +9,8 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'description', 'category_id']; // Добавьте поле для массового заполнения
+    // Поля для массового заполнения
+    protected $fillable = ['title', 'description', 'due_date', 'category_id']; 
 
     // Метод для связи с категорией
     public function category()

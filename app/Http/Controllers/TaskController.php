@@ -5,50 +5,39 @@ use App\Models\Task;
 use Illuminate\Http\Request;
 use App\Models\Category;
 use App\Models\Tag;
+use Illuminate\Support\Facades\Validator;
+use App\Http\Requests\CreateTaskRequest;
+use App\Http\Requests\UpdateTaskRequest;
 
 class TaskController extends Controller
 {
     // Метод для отображения списка задач
     public function index()
     {
-        // Получаем все задачи из базы данных
-    $tasks = Task::all();
-
-    // Возвращаем представление и передаем список задач
-    return view('tasks.index', compact('tasks'));
+        $tasks = Task::all(); // Получаем все задачи
+        return view('tasks.index', compact('tasks')); // Передаем задачи в представление
     }
 
     // Метод для отображения формы создания задачи
     public function create()
     {
-        $categories = Category::all(); // Получение всех категорий для выпадающего списка
-        $tags = Tag::all(); // Получение всех тегов для выпадающего списка
-        return view('tasks.create', compact('categories', 'tags'));
+        $categories = Category::all(); // Получаем все категории для выпадающего списка
+        return view('tasks.create', compact('categories')); // Отправляем категории в представление
     }
 
     // Метод для сохранения новой задачи
-    public function store(Request $request)
+    public function store(CreateTaskRequest $request)
     {
-        $validatedData = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'required|exists:categories,id',
-            'tags' => 'array',
-            'tags.*' => 'exists:tags,id', // Проверка каждого тега
+        // Данные уже прошли валидацию, можем сохранить задачу
+        Task::create([
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'due_date' => $request->input('due_date'),
+            'category_id' => $request->input('category_id'),
         ]);
 
-        $task = Task::create([
-            'title' => $validatedData['title'],
-            'description' => $validatedData['description'],
-            'category_id' => $validatedData['category_id'],
-        ]);
-
-        // Привязываем теги к задаче
-        if (isset($validatedData['tags'])) {
-            $task->tags()->attach($validatedData['tags']);
-        }
-
-        return redirect()->route('tasks.index')->with('success', 'Задача успешно создана!');
+       // Добавляем флеш-сообщение об успешном сохранении
+    return redirect()->route('tasks.index')->with('success', 'Задача успешно создана.');
     }
 
     // Метод для отображения отдельной задачи
@@ -62,28 +51,26 @@ class TaskController extends Controller
     }
 
     // Метод для отображения формы редактирования задачи
-    public function edit($id)
-    {
-        $task = Task::with(['category', 'tags'])->findOrFail($id);
-        $categories = Category::all(); // Получаем все категории для выбора
-        $tags = Tag::all(); // Получаем все теги для выбора
-        return view('tasks.edit', compact('task', 'categories', 'tags'));
-    }
+    public function edit(Task $task)
+{
+    $categories = Category::all(); // Получение всех категорий
+    return view('tasks.edit', compact('task', 'categories')); // Возвращаем представление с данными
+}
 
     // Метод для обновления задачи
-    public function update(Request $request, $id)
+    public function update(UpdateTaskRequest $request, Task $task)
     {
-        $task = Task::findOrFail($id);
-        $task->title = $request->input('title');
-        $task->description = $request->input('description');
-        $task->category_id = $request->input('category_id');
-        $task->tags()->sync($request->input('tags', [])); // Обновляем теги
+        // Данные уже прошли валидацию через UpdateTaskRequest
+        $task->update([
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'due_date' => $request->input('due_date'),
+            'category_id' => $request->input('category_id'),
+        ]);
     
-        $task->save();
-    
-        return redirect()->route('tasks.index')->with('success', 'Задача успешно обновлена!'); 
+        // Добавляем флеш-сообщение об успешном обновлении
+        return redirect()->route('tasks.index')->with('success', 'Задача успешно обновлена.');
     }
-
     // Метод для удаления задачи
     public function destroy($id)
     {
