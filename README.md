@@ -75,9 +75,9 @@ Route::post('/register', [AuthController::class, 'register']);
 ```
 4. Обновляем представления для форм регистрации и входа..
 
-![Ку](images/1.png)
+![Ку](./1.png)
 
-![Ку](images/2.png)
+![Ку](./2.png)
 
 5. Создаем отдельный класс Request для валидации данных при регистрации или входе.
 
@@ -126,7 +126,7 @@ Route::post('/register', [AuthController::class, 'register']);
     </div>
 @endsection
 ```
-![Ку](images/3.png)
+![Ку](./3.png)
 
 8. Настраиваем проверку доступа к данной странице, добавив middleware auth в маршрут.
 
