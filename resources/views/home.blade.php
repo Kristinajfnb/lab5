@@ -9,6 +9,8 @@
         <p>
             <a class="btn btn-primary" href="{{ route('tasks.index') }}">Список задач</a>
             <a class="btn btn-secondary" href="{{ route('tasks.create') }}">Создать задачу</a>
+            <a href="{{ route('login') }}">Вход</a>
+            <a href="{{ route('register') }}">Регистрация</a>
         </p>
     </div>
 

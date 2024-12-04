@@ -1,191 +1,147 @@
-# Лабораторная работа №3. Основы создания и управления форм в Laravel
+# Лабораторная работа №5 Компоненты безопасности в Laravel. 
 
 ## Цель работы
 
-Познакомиться с основами создания и управления формами в Laravel. Освоить механизмы валидации данных на сервере, использовать предустановленные и кастомные правила валидации, а также научиться обрабатывать ошибки и обеспечивать безопасность данных.
+Познакомиться с основами компонентов безопасности в Laravel, таких как аутентификация, авторизация, защита от CSRF, а также использование встроенных механизмов для управления доступом. Освоить подходы к безопасной разработке, включая создание защищенных маршрутов и управление ролями пользователей.
 
 ### Задания
 
-1. Создаю форму для добавления новой задачи. Форма должна содержать следующие поля: Название, Описание, Дата выполнения, Категория.
+1. Создаем контроллер AuthController для управления аутентификацией пользователей.
+php artisan make:controller AuthController
+- `php artisan make:controller AuthController`
 
-2. Создаем маршрут POST /tasks для сохранения данных из формы в базе данных. Для удобства  использую ресурсный контроллер.
+2. Добавляем методы для регистрации, входа и выхода пользователя.
 ```php
-use App\Http\Controllers\TaskController;
+// Обработать данные входа
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
 
-Route::resource('tasks', TaskController::class);
+        if (Auth::attempt($request->only('email', 'password'))) {
+            $request->session()->regenerate();
+            return redirect()->route('home')->with('success', 'Вы успешно вошли в систему.');
+        }
+
+        return back()->withErrors([
+            'email' => 'Неверные учетные данные.',
+        ])->onlyInput('email');
+    }
+// Выход из системы
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')->with('success', 'Вы успешно вышли из системы.');
+    }
+ // Обработать данные регистрации
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users|max:255',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => bcrypt($request->password),
+        ]);
+
+        Auth::login($user);
+
+        return redirect()->route('home')->with('success', 'Регистрация прошла успешно.');
+    }
 ```
-3. Обновляем контроллер TaskController.
+3. Создаем маршруты для регистрации, входа и выхода пользователя.
 ```php
-public function create()
-{
-    $categories = \App\Models\Category::all(); // Получаем все категории для выпадающего списка
-    return view('tasks.create', compact('categories'));
-}
-public function store(Request $request)
-{
-    $request->validate([
-        'title' => 'required|string|max:255',
-        'description' => 'nullable|string',
-        'due_date' => 'nullable|date',
-        'category_id' => 'required|exists:categories,id'
-    ]);
+ use App\Http\Controllers\AuthController;
 
-    Task::create([
-        'title' => $request->input('title'),
-        'description' => $request->input('description'),
-        'due_date' => $request->input('due_date'),
-        'category_id' => $request->input('category_id')
-    ]);
+// Форма входа
+Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
+Route::post('/login', [AuthController::class, 'login']);
 
-    return redirect()->route('tasks.index')->with('success', 'Задача успешно добавлена.');
-}
+// Выход
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Форма регистрации
+Route::get('/register', [AuthController::class, 'showRegistrationForm'])->name('register');
+Route::post('/register', [AuthController::class, 'register']);
 ```
+4. Обновляем представления для форм регистрации и входа..
+
 ![Ку](images/1.png)
 
-4. Реализуем валидацию данных непосредственно в методе store контроллера TaskController.
-```php
-    public function store(Request $request)
-    {
-        // Валидация данных
-        $validated = $request->validate([
-            'title' => 'required|string|min:3',
-            'description' => 'nullable|string|max:500',
-            'due_date' => 'required|date|after_or_equal:today', // Дата не может быть в прошлом
-            'category_id' => 'required|exists:categories,id', // Должна быть валидная категория
-        ]);
-
-        // Если валидация прошла успешно, создаем задачу
-        Task::create($validated);
-
-        // Перенаправляем на страницу задач с сообщением об успешном создании
-        return redirect()->route('tasks.index')->with('success', 'Задача успешно добавлена!');
-    }
-```
-5. Обрабатываем ошибки валидации и возвращаем их обратно к форме, отображая сообщения об ошибках рядом с полями.
-
-```php
-      <div>{{ $message }}</div>
-```
 ![Ку](images/2.png)
 
-6. Создаем собственный класс запроса для валидации формы задачи.
-- `php artisan make:request CreateTaskRequest`
-7. В классе CreateTaskRequest определяем правила валидации, аналогичные тем, что были в контроллере.
+5. Создаем отдельный класс Request для валидации данных при регистрации или входе.
 
 ```php
- public function rules()
+      public function storeRegister(Request $request)
+{
+    $validated = $request->validate([
+        'name' => 'required|string|min:3|max:50',
+        'email' => 'required|string|email|max:255|unique:users,email',
+        'password' => 'required|string|min:6|confirmed',
+    ]);
+
+    User::create([
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'password' => Hash::make($validated['password']),
+    ]);
+    public function storeLogin(Request $request)
     {
-        return [
-            'title' => 'required|string|min:3',
-            'description' => 'nullable|string|max:500',
-            'due_date' => 'required|date|after_or_equal:today',
-            'category_id' => 'required|exists:categories,id',
-        ];
-    }
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);}}
 ```
-8. Обновляем метод store контроллера TaskController для использования CreateTaskRequest вместо стандартного Request.
+6. Установливаем библиотеку Laravel Breeze для быстрой настройки аутентификации. 
+- `composer require laravel/breeze --dev`
+7. Реализуем страницу "Личный кабинет", доступ к которой имеют только авторизованные пользователи.
 
 ```php
- public function store(CreateTaskRequest $request)
-    {
-        // Данные уже прошли валидацию, можем сохранить задачу
-        Task::create([
-            'title' => $request->input('title'),
-            'description' => $request->input('description'),
-            'due_date' => $request->input('due_date'),
-            'category_id' => $request->input('category_id'),
-        ]);
+<!-- resources/views/profile/index.blade.php -->
+@extends('layouts.app')
 
-        // Перенаправляем с сообщением об успешном создании
-        return redirect()->route('tasks.index')->with('success', 'Task created successfully');
-    }
-```
-9. Добавляем логику валидации для связанных данных.
+@section('content')
+    <div class="container">
+        <h1>Личный кабинет</h1>
+        <p>Добро пожаловать, {{ $user->name }}!</p>
+        <p>Email: {{ $user->email }}</p>
 
-```php
-  public function rules()
-    {
-        return [
-            'title' => 'required|string|min:3',
-            'description' => 'nullable|string|max:500',
-            'due_date' => 'required|date|after_or_equal:today',
-            'category_id' => 'required|exists:categories,id', // Проверка, что category_id существует в таблице categories
-        ];
-    }
-```
-10. Обновляем HTML-форму для отображения подтверждающего сообщения об успешном сохранении задачи (флеш-сообщение).
+        <a href="{{ route('logout') }}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+            Выйти
+        </a>
 
-```php
-  // Добавляем флеш-сообщение об успешном сохранении
-    return redirect()->route('tasks.index')->with('success', 'Задача успешно создана.');
-```
-```php
-{{-- Проверка наличия флеш-сообщений --}}
-@if(session('success'))
-    <div class="alert alert-success">
-        {{ session('success') }}
+        <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+            @csrf
+        </form>
     </div>
-@endif
+@endsection
 ```
 ![Ку](images/3.png)
 
-11. Добавляем директиву @csrf в форму для защиты от атаки CSRF.
-```php
-<form action="{{ route('tasks.store') }}" method="POST">
-    @csrf
-    <div>
-        <label for="title">Название</label>
-        <input type="text" name="title" id="title" required>
-    </div>
-
-    <div>
-        <label for="description">Описание</label>
-        <textarea name="description" id="description"></textarea>
-    </div>
-```
-12. Добавляем возможность редактирования задачи. Создаем форму для редактирования задачи.
-
-![Ку](images/4.png)
-
-13. Создаем новый Request-класс UpdateTaskRequest с аналогичными правилами валидации.
-
-- `php artisan make:request UpdateTaskRequest`
-
-14. Создаем маршрут GET /tasks/{task}/edit и метод edit в контроллере TaskController.
+8. Настраиваем проверку доступа к данной странице, добавив middleware auth в маршрут.
 
 ```php
-use App\Http\Controllers\TaskController;
-
-Route::get('/tasks/{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
+//cabinet
+Route::middleware(['auth'])->get('/dashboard', [ProfileController::class, 'index'])->name('dashboard');
+Route::middleware('auth')->group(function () {
+Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+// Для администраторов
+Route::middleware('admin')->get('/admin/users', [AdminController::class, 'index'])->name('admin.users');});
 ```
-
-15. Создаем маршрут PUT /tasks/{task} для обновления задачи.
-
-```php
-Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
-```
-
-16. Обновляем метод update в контроллере TaskController для обработки данных из формы.
-
-```php
-public function update(UpdateTaskRequest $request, Task $task)
-{
-    // Данные уже прошли валидацию через UpdateTaskRequest
-    $task->update([
-        'title' => $request->input('title'),
-        'description' => $request->input('description'),
-        'due_date' => $request->input('due_date'),
-        'category_id' => $request->input('category_id'),
-    ]);
-
-    // Добавляем флеш-сообщение об успешном обновлении
-    return redirect()->route('tasks.index')->with('success', 'Задача успешно обновлена.');
-}
-```
+9. Добавляем защиту от CSRF-атак на формах.
 
 ## Контрольные вопросы
-1. Что такое валидация данных и зачем она нужна? Валидация данных — это процесс проверки и подтверждения того, что данные, введенные пользователем в форму, соответствуют определенным правилам. Зачем она нужна: предотвращение ошибок, безопасность, удобство пользователя.
-2. Как обеспечить защиту формы от CSRF-атак в Laravel? CSRF (Cross-Site Request Forgery) — это тип атаки, при которой злоумышленник заставляет пользователя выполнить нежелательные действия на веб-сайте, на котором он аутентифицирован. Laravel защищает от CSRF-атак с помощью специального токена, который необходимо включить в каждую форму, отправляющую данные методом POST, PUT, DELETE.
-3. Как создать и использовать собственные классы запросов (Request) в Laravel? Классы запросов в Laravel — это специальные классы, которые используются для инкапсуляции логики валидации и авторизации. Это помогает разделить логику контроллера и улучшить читаемость и поддержку кода.
-- `php artisan make:request UpdateTaskRequest`
-4. Как защитить данные от XSS-атак при выводе в представлении? Защита от XSS-атак обеспечивается через автоматическое экранирование данных, выводимых в Blade-шаблонах с помощью {{ }}.
+1. Какие готовые решения для аутентификации предоставляет Laravel? Laravel предоставляет встроенные механизмы для аутентификации пользователей, которые можно легко использовать: Laravel Breeze, Laravel Jetstream, Laravel Fortify, Laravel Sanctum, Laravel Passport.
+2. Какие методы аутентификации пользователей вы знаете? Форма входа с логином и паролем, Одноразовые пароли (OTP), Токен-авторизация, Двухфакторная аутентификация (2FA), Аутентификация через социальные сети.
+3. Чем отличается аутентификация от авторизации? Аутентификация отвечает за то, чтобы убедиться, кто пользователь, а авторизация — за то, чтобы определить, что он может делать.
+4. Как обеспечить защиту от CSRF-атак в Laravel? Использовать CSRF-токены, Middleware защита
